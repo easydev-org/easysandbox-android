@@ -36,8 +36,8 @@ BUILDKIT="${BUILDKIT_ADDR:-tcp://buildkitd.agent.svc.cluster.local:1234}"
 PROXY="${PROXY:-http://mihomo.develop.svc.cluster.local:7890}"
 # Both guest binaries (the Go worker and the Kotlin easystream APK) come from
 # their GitHub releases — see the Containerfile. The build only needs versions.
-WORKER_VERSION="${WORKER_VERSION:-v0.0.1}"
-EASYSTREAM_VERSION="${EASYSTREAM_VERSION:-v0.0.1}"
+WORKER_VERSION="${WORKER_VERSION:-v0.1.0}"
+EASYSTREAM_VERSION="${EASYSTREAM_VERSION:-v0.1.0}"
 
 for f in "${DIR}/Containerfile" "${DIR}/entrypoint.sh"; do
   [ -e "$f" ] || { echo "missing $f" >&2; exit 1; }
