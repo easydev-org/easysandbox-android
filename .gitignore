@@ -1,0 +1,5 @@
+# Guest binaries are NOT vendored here: they come from the GitHub releases of
+# easydev-org/easyworker (agent-worker) and easydev-org/easystream-android (the
+# APK) at build time.
+dist/
+*.apk
