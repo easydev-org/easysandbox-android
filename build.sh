@@ -64,6 +64,7 @@ echo "  system image: ${SYSTEM_IMAGE}"
   --opt "build-arg:WORKER_VERSION=${WORKER_VERSION}" \
   --opt "build-arg:EASYSTREAM_VERSION=${EASYSTREAM_VERSION}" \
   --opt "build-arg:RELEASE_PROXY=${PROXY}" \
+  --opt "build-arg:RELEASE_CACHEBUST=$(date +%s)" \
   --opt "build-arg:HTTP_PROXY=${PROXY}" \
   --opt "build-arg:HTTPS_PROXY=${PROXY}" \
   --output "type=oci,dest=${WORK}/image.oci,compression=zstd" \

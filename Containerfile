@@ -160,7 +160,8 @@ ENV PATH=/opt/android-sdk/platform-tools:/opt/android-sdk/emulator:/usr/local/sb
 ARG WORKER_VERSION=v0.0.1
 ARG EASYSTREAM_VERSION=v0.0.1
 ARG RELEASE_PROXY
-RUN set -eux; \
+ARG RELEASE_CACHEBUST
+RUN set -eux; echo "release cachebust ${RELEASE_CACHEBUST}"; \
     curl -fsSL ${RELEASE_PROXY:+-x "${RELEASE_PROXY}"} -o /opt/agent-worker-android \
       "https://github.com/easydev-org/easyworker/releases/download/${WORKER_VERSION}/agent-worker-linux-amd64"; \
     curl -fsSL ${RELEASE_PROXY:+-x "${RELEASE_PROXY}"} -o /opt/easystream.apk \

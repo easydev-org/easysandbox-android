@@ -63,7 +63,12 @@ bring_up_guest() {
   $ADB shell "wm dismiss-keyguard" >/dev/null 2>&1 || true
 
   # --- install + authorize the easystream daemon --------------------------
-  $ADB install -r /opt/easystream.apk >/dev/null 2>&1 || echo "android: apk install failed" >&2
+  # Do NOT swallow the error: a silent failure here left the daemon dead and
+  # only produced a vague "est daemon not listening" further down.
+  if ! out="$($ADB install -r /opt/easystream.apk 2>&1)"; then
+    echo "android: apk install FAILED:" >&2
+    printf '%s\n' "$out" >&2
+  fi
   # Grant PROJECT_MEDIA BEFORE starting the app: the app requests the projection
   # on launch, so the appop must already be set or the consent dialog appears and
   # blocks the automatic flow. The app asks for
