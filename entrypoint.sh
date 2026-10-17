@@ -44,8 +44,12 @@ bring_up_guest() {
   WIPE_ARG=""; [ "${WIPE^^}" = "Y" ] && WIPE_ARG="-wipe-data"
   PROXY_ARG=""; P="${SANDBOX_PROXY:-${HTTP_PROXY:-}}"; [ -n "$P" ] && PROXY_ARG="-http-proxy ${P}"
   echo "android: starting emulator (headless, kvm, ${CPUS} vCPU, ${MEM} MB, gpu=${GPU})"
+  # Do NOT pass -no-audio: the est daemon captures SYSTEM playback with
+  # AudioPlaybackCapture (see Audio.kt), and a guest with no audio HAL has
+  # nothing to capture — the daemon then advertises hasAudio=0. The emulator's
+  # audio backend is what makes playback (and therefore capture) exist.
   emulator -avd "$AVD" \
-    -no-window -no-audio -no-boot-anim -no-snapshot ${WIPE_ARG} ${PROXY_ARG} \
+    -no-window -no-boot-anim -no-snapshot ${WIPE_ARG} ${PROXY_ARG} \
     -gpu "$GPU" -accel on -memory "$MEM" -cores "$CPUS" -port 5554 \
     >/tmp/emulator.log 2>&1 &
   echo $! > /tmp/emu.pid
@@ -75,6 +79,11 @@ bring_up_guest() {
   # createConfigForDefaultDisplay() (whole screen, no range selector), so with
   # the appop the grant is fully automatic — no UI taps.
   $ADB shell appops set dev.easystream PROJECT_MEDIA allow >/dev/null 2>&1 || true
+  # AudioPlaybackCapture needs RECORD_AUDIO granted at runtime (Android 6+),
+  # not just declared in the manifest. A dangerous permission with no grant
+  # makes AudioRecord fail to start, so the daemon reports hasAudio=0.
+  $ADB shell pm grant dev.easystream android.permission.RECORD_AUDIO >/dev/null 2>&1 || true
+  $ADB shell appops set dev.easystream RECORD_AUDIO allow >/dev/null 2>&1 || true
   sleep 1
   $ADB shell am start -n dev.easystream/.MainActivity --ez autoGrant true >/dev/null 2>&1 || true
   sleep 6
