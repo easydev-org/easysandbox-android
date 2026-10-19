@@ -169,25 +169,6 @@ RUN set -eux; echo "release cachebust ${RELEASE_CACHEBUST}"; \
     chmod 755 /opt/easyworker-android; chmod 644 /opt/easystream.apk; \
     ls -la /opt/easyworker-android /opt/easystream.apk
 
-# --- a git the GUEST can run --------------------------------------------------
-# Jobs run in the Android guest (bionic libc), so the image's own /usr/bin/git
-# is useless there. Pull a statically linked (musl) git out of Alpine instead:
-# it is a single self-contained binary with no libc dependency, so `adb push`
-# is all it needs. Without it `git clone` fails with
-# `exec: "git": executable file not found in $PATH` — which is what every job
-# that needs a repo hit.
-RUN set -eux; \
-    curl -fsSL ${RELEASE_PROXY:+-x "${RELEASE_PROXY}"} -o /tmp/alpine.tgz \
-      "https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz" || true; \
-    mkdir -p /opt/aguest; \
-    if [ -s /tmp/alpine.tgz ]; then \
-      tar -xzf /tmp/alpine.tgz -C /opt/aguest 2>/dev/null || true; \
-      cp /opt/aguest/etc/apk/repositories /tmp/repos 2>/dev/null || true; \
-      chroot /opt/aguest /sbin/apk add --no-cache git 2>&1 | tail -3 || true; \
-    fi; \
-    ls -la /opt/aguest/usr/bin/git 2>/dev/null || echo "no git built"; \
-    rm -f /tmp/alpine.tgz
-
 COPY --chmod=755 ./entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN mkdir -p /workspace
 
