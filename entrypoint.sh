@@ -131,6 +131,20 @@ for _ in $(seq 1 240); do
 done
 echo "android: worker reachable on 127.0.0.1:14880; fronting on 0.0.0.0:48080"
 
+# --- publish the in-guest easystream HTTP surface on :48078 ---------------
+#
+# easystream inside the emulator is the SAME daemon as on every other platform:
+# it listens on :48079 (est binary protocol) AND :48078 (HTTP + the shared web
+# UI). Only the worker port used to be forwarded, so /desktop/ (the worker's
+# proxy to 127.0.0.1:48078) could not reach it on Android and the panel showed
+# a dead link.
+#
+# adb forward binds 127.0.0.1 only, and the worker dials 127.0.0.1:48078 — so
+# forwarding container:48078 -> guest:48078 is enough; no extra front proxy is
+# needed because both processes live in this pod.
+echo "android: forwarding :48078 -> guest easystream http"
+adb -s emulator-5554 forward tcp:48078 tcp:48078 >/dev/null 2>&1 || true
+
 # Front proxy: socat binds 0.0.0.0:48080 (the k8s Service targetPort) and relays
 # to the adb-forwarded loopback. Run it in the foreground of its own subshell so
 # it is restarted if it ever exits.
