@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and push the agent-worker Android (emulator) sandbox image.
+# Build and push the easyworker Android (emulator) sandbox image.
 #
 #   ./agent-toolchain/android/build.sh [aosp|gms]        # default: aosp
 #   FLAVOR=gms TAG=gms ./agent-toolchain/android/build.sh
@@ -13,7 +13,7 @@
 #   gms  -> system-images;android-35;google_apis;x86_64   (GMS, no Play Store)
 #
 # Prerequisites:
-#   * dist/agent-worker-linux-amd64    (scripts/build-all.sh)
+#   * dist/easyworker-linux-amd64    (scripts/build-all.sh)
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${DIR}/../.." && pwd)"
@@ -67,17 +67,8 @@ echo "  system image: ${SYSTEM_IMAGE}"
   --opt "build-arg:RELEASE_CACHEBUST=$(date +%s)" \
   --opt "build-arg:HTTP_PROXY=${PROXY}" \
   --opt "build-arg:HTTPS_PROXY=${PROXY}" \
-  --output "type=oci,dest=${WORK}/image.oci,compression=zstd" \
+  --output "type=image,name=${DEST},push=true,registry.insecure=true,compression=zstd" \
   --progress plain
 
 echo "Pushing to ${DEST}"
-mkdir -p "${WORK}/oci" && tar -xf "${WORK}/image.oci" -C "${WORK}/oci"
-skopeo copy --src-tls-verify=false --dest-tls-verify=false \
-  --dest-creds "${FORGEJO_USER:-root}:${FORGEJO_PASS:-devpassword}" \
-  "oci:${WORK}/oci" "docker://${DEST}"
-
-echo "Verifying push:"
-skopeo inspect --creds "${FORGEJO_USER:-root}:${FORGEJO_PASS:-devpassword}" \
-  --tls-verify=false "docker://${DEST}" >/dev/null 2>&1 \
-  && echo "OK ${DEST}" \
-  || echo "inspect failed for ${DEST} (image may still be present)"
+echo "pushed by buildctl: ${DEST}"

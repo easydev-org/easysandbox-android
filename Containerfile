@@ -1,4 +1,4 @@
-# agent-worker Android sandbox — RUN-ONLY: the official Android Emulator, a
+# easyworker Android sandbox — RUN-ONLY: the official Android Emulator, a
 # system image, and adb. Screen is served by the in-guest worker over WebRTC
 # (/stream/), NOT VNC — the emulator runs headless (-no-window). No build toolchain.
 #
@@ -162,19 +162,38 @@ ARG EASYSTREAM_VERSION=v0.1.0
 ARG RELEASE_PROXY
 ARG RELEASE_CACHEBUST
 RUN set -eux; echo "release cachebust ${RELEASE_CACHEBUST}"; \
-    curl -fsSL ${RELEASE_PROXY:+-x "${RELEASE_PROXY}"} -o /opt/agent-worker-android \
-      "https://github.com/easydev-org/easyworker/releases/download/${WORKER_VERSION}/agent-worker-linux-amd64"; \
+    curl -fsSL ${RELEASE_PROXY:+-x "${RELEASE_PROXY}"} -o /opt/easyworker-android \
+      "https://github.com/easydev-org/easyworker/releases/download/${WORKER_VERSION}/easyworker-linux-amd64"; \
     curl -fsSL ${RELEASE_PROXY:+-x "${RELEASE_PROXY}"} -o /opt/easystream.apk \
       "https://github.com/easydev-org/easystream-android/releases/download/${EASYSTREAM_VERSION}/easystream-android.apk"; \
-    chmod 755 /opt/agent-worker-android; chmod 644 /opt/easystream.apk; \
-    ls -la /opt/agent-worker-android /opt/easystream.apk
+    chmod 755 /opt/easyworker-android; chmod 644 /opt/easystream.apk; \
+    ls -la /opt/easyworker-android /opt/easystream.apk
+
+# --- a git the GUEST can run --------------------------------------------------
+# Jobs run in the Android guest (bionic libc), so the image's own /usr/bin/git
+# is useless there. Pull a statically linked (musl) git out of Alpine instead:
+# it is a single self-contained binary with no libc dependency, so `adb push`
+# is all it needs. Without it `git clone` fails with
+# `exec: "git": executable file not found in $PATH` — which is what every job
+# that needs a repo hit.
+RUN set -eux; \
+    curl -fsSL ${RELEASE_PROXY:+-x "${RELEASE_PROXY}"} -o /tmp/alpine.tgz \
+      "https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz" || true; \
+    mkdir -p /opt/aguest; \
+    if [ -s /tmp/alpine.tgz ]; then \
+      tar -xzf /tmp/alpine.tgz -C /opt/aguest 2>/dev/null || true; \
+      cp /opt/aguest/etc/apk/repositories /tmp/repos 2>/dev/null || true; \
+      chroot /opt/aguest /sbin/apk add --no-cache git 2>&1 | tail -3 || true; \
+    fi; \
+    ls -la /opt/aguest/usr/bin/git 2>/dev/null || echo "no git built"; \
+    rm -f /tmp/alpine.tgz
 
 COPY --chmod=755 ./entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN mkdir -p /workspace
 
 ENV WORKER_PORT=48080 \
     WORKER_WORKSPACE=/workspace \
-    WORKER_DB=/tmp/agent-worker/jobs.db \
+    WORKER_DB=/tmp/easyworker/jobs.db \
     WORKER_OS=android \
     ANDROID_MEM=8192 \
     ANDROID_CPUS=4 \

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# agent-worker Android sandbox.
+# easyworker Android sandbox.
 #
 # FINAL SHAPE: the Go worker AND the Kotlin easystream daemon both run INSIDE
 # the emulator. This container only boots the emulator, installs the baked APK,
@@ -21,7 +21,7 @@ CPUS="${ANDROID_CPUS:-4}"
 GPU="${ANDROID_GPU:-swiftshader_indirect}"
 WIPE="${ANDROID_WIPE_DATA:-N}"
 ADB="adb -s emulator-5554"
-GUEST_WORKER=/data/local/tmp/agent-worker
+GUEST_WORKER=/data/local/tmp/easyworker
 GUEST_WS=/data/local/tmp/workspace
 
 export ANDROID_SDK_ROOT=/opt/android-sdk
@@ -110,13 +110,13 @@ bring_up_guest() {
   fi
 
   # --- the Go worker (static) runs INSIDE the guest ------------------------
-  $ADB push /opt/agent-worker-android "$GUEST_WORKER" >/dev/null 2>&1 || echo "android: worker push failed" >&2
+  $ADB push /opt/easyworker-android "$GUEST_WORKER" >/dev/null 2>&1 || echo "android: worker push failed" >&2
   $ADB shell chmod 755 "$GUEST_WORKER" >/dev/null 2>&1 || true
   $ADB shell mkdir -p "$GUEST_WS" >/dev/null 2>&1 || true
   $ADB shell "pkill -f $GUEST_WORKER" >/dev/null 2>&1 || true
-  $ADB shell "cd /data/local/tmp && WORKER_OS=android WORKER_TOKEN='${WORKER_TOKEN:-}' WORKER_WORKSPACE=$GUEST_WS setsid $GUEST_WORKER -addr 127.0.0.1:48080 -workspace $GUEST_WS -db $GUEST_WS/jobs.db >/data/local/tmp/agent-worker.log 2>&1 </dev/null &" >/dev/null 2>&1 || true
+  $ADB shell "cd /data/local/tmp && WORKER_OS=android WORKER_TOKEN='${WORKER_TOKEN:-}' WORKER_WORKSPACE=$GUEST_WS setsid $GUEST_WORKER -addr 127.0.0.1:48080 -workspace $GUEST_WS -db $GUEST_WS/jobs.db >/data/local/tmp/easyworker.log 2>&1 </dev/null &" >/dev/null 2>&1 || true
   sleep 3
-  $ADB shell "cat /data/local/tmp/agent-worker.log" 2>/dev/null | tail -5 >&2 || true
+  $ADB shell "cat /data/local/tmp/easyworker.log" 2>/dev/null | tail -5 >&2 || true
 }
 bring_up_guest &
 

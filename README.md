@@ -18,7 +18,7 @@ Both come from GitHub **releases** at build time — nothing is vendored:
 
 | binary | from |
 |---|---|
-| `agent-worker` (static linux/amd64) | `easydev-org/easyworker` release `WORKER_VERSION` |
+| `easyworker` (static linux/amd64) | `easydev-org/easyworker` release `WORKER_VERSION` |
 | `easystream.apk` (Kotlin est daemon) | `easydev-org/easystream-android` release `EASYSTREAM_VERSION` |
 
 ## Build
