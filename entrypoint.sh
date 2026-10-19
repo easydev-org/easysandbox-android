@@ -76,7 +76,13 @@ bring_up_guest() {
   # the appop the grant is fully automatic — no UI taps.
   $ADB shell appops set dev.easystream PROJECT_MEDIA allow >/dev/null 2>&1 || true
   sleep 1
-  $ADB shell am start -n dev.easystream/.MainActivity --ez autoGrant true >/dev/null 2>&1 || true
+  # Lock the daemon: control needs the token, view stays open. The APK reads it
+  # from the Intent (an APK's System.getenv never sees `am start`'s env), and it
+  # defaults to the worker's own token — the worker already drives the GUI
+  # through its ComputerService, so the same secret grants no more.
+  EST_CONTROL_TOKEN="${EAZYSTREAM_CONTROL_TOKEN:-${WORKER_TOKEN:-}}"
+  $ADB shell am start -n dev.easystream/.MainActivity --ez autoGrant true \
+    --es controlToken "'$EST_CONTROL_TOKEN'" >/dev/null 2>&1 || true
   sleep 6
   sleep 2
   $ADB shell settings put secure enabled_accessibility_services dev.easystream/dev.easystream.A11yService >/dev/null 2>&1 || true
@@ -96,7 +102,8 @@ bring_up_guest() {
     echo "android: WARNING: est daemon not listening; re-granting + restarting app" >&2
     $ADB shell am force-stop dev.easystream >/dev/null 2>&1 || true
     sleep 2
-    $ADB shell am start -n dev.easystream/.MainActivity --ez autoGrant true >/dev/null 2>&1 || true
+    $ADB shell am start -n dev.easystream/.MainActivity --ez autoGrant true \
+      --es controlToken "'$EST_CONTROL_TOKEN'" >/dev/null 2>&1 || true
     sleep 5
     $ADB shell appops set dev.easystream PROJECT_MEDIA allow >/dev/null 2>&1 || true
     sleep 2
