@@ -97,16 +97,59 @@ bring_up_guest() {
   # auto-accepted with the DEFAULT range ("A single app") and the projection then
   # captures nothing. The dialog must appear so "Entire screen" can be chosen.
   sleep 2
-  # Verify: the est daemon must be listening on :48079 in the guest.
-  if ! $ADB shell "nc -z 127.0.0.1 48079" >/dev/null 2>&1; then
-    echo "android: WARNING: est daemon not listening; re-granting + restarting app" >&2
-    $ADB shell am force-stop dev.easystream >/dev/null 2>&1 || true
+  # --- wait until BOTH daemon ports are actually up -------------------------
+  #
+  # `am start` returning success only means the Intent was delivered; the app
+  # then spends seconds bringing up MediaProjection before its two listeners
+  # appear. One single check (the previous code) raced that: on a cold boot it
+  # fired before 48079/48078 were bound, "restarted" an app that was still
+  # starting, and then nothing ever verified the result — the pod ended up with
+  # NO easystream at all (both ports refused, /desktop/ 502), which looked like a
+  # token/permission failure but was simply a dead daemon.
+  #
+  # So: poll for up to ~90s, kicking the app once at the halfway mark, and FAIL
+  # LOUDLY if it never comes up.
+  est_up() { $ADB shell "nc -z 127.0.0.1 $1" >/dev/null 2>&1; }
+  ready=0
+  for i in $(seq 1 30); do
+    if est_up 48079 && est_up 48078; then ready=1; break; fi
+    if [ "$i" = 10 ]; then
+      echo "android: daemon slow to bind (48079/48078); restarting the app once" >&2
+      $ADB shell am force-stop dev.easystream >/dev/null 2>&1 || true
+      sleep 2
+      $ADB shell appops set dev.easystream PROJECT_MEDIA allow >/dev/null 2>&1 || true
+      $ADB shell am start -n dev.easystream/.MainActivity --ez autoGrant true \
+        --es controlToken "'$EST_CONTROL_TOKEN'" >/dev/null 2>&1 || true
+    fi
+    sleep 3
+  done
+  if [ "$ready" = 1 ]; then
+    echo "android: easystream is up (est 48079, http 48078)"
+  else
+    echo "android: ERROR: easystream never bound 48079/48078 after 90s" >&2
+    $ADB shell "logcat -d -s easystream:* AndroidRuntime:E 2>/dev/null | tail -20" >&2 || true
+  fi
+
+  # --- get the app OUT of the foreground -----------------------------------
+  #
+  # MainActivity is a setup screen ("3. Start the control service" + two
+  # permission buttons). Launching it puts it in front of the Launcher, and it
+  # STAYS there: the daemon is running and the screen streams fine, but the
+  # "desktop" a viewer sees is that config page — and every injected pointer
+  # event lands on its buttons instead of Android. Pressing HOME after the
+  # daemon is up leaves the service running in the background (an
+  # AccessibilityService and a MediaProjection are not tied to the Activity) and
+  # puts the Launcher back in front.
+  # Only background the app once the daemon is really up — pressing HOME while
+  # it is still starting would just hide a config screen with no service behind
+  # it, which is indistinguishable from a broken daemon.
+  if [ "$ready" = 1 ]; then
+    $ADB shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
     sleep 2
-    $ADB shell am start -n dev.easystream/.MainActivity --ez autoGrant true \
-      --es controlToken "'$EST_CONTROL_TOKEN'" >/dev/null 2>&1 || true
-    sleep 5
-    $ADB shell appops set dev.easystream PROJECT_MEDIA allow >/dev/null 2>&1 || true
-    sleep 2
+    $ADB shell am start -a android.intent.action.MAIN -c android.intent.category.HOME >/dev/null 2>&1 || true
+    sleep 1
+  else
+    echo "android: leaving the setup screen visible (daemon is down)" >&2
   fi
 
   # --- the Go worker (static) runs INSIDE the guest ------------------------
@@ -155,6 +198,14 @@ adb -s emulator-5554 forward tcp:48078 tcp:48078 >/dev/null 2>&1 || true
     sleep 2
   done
 ) &
+
+# NOTE: no socat front proxy for :48078, on purpose.
+#
+# `adb forward tcp:48078 tcp:48078` already binds 127.0.0.1:48078, which is
+# exactly what the worker dials for /desktop/ — verified: GET 127.0.0.1:48078
+# returns the daemon's 17 KB UI. A socat in front of it fails with
+# "Address already in use" and would be pointless: nothing outside the pod
+# talks to :48078 directly, the worker proxies it.
 
 # Keep the container (and the emulator) alive; re-assert the adb forward if it
 # drops.
