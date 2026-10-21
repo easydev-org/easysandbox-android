@@ -82,7 +82,7 @@ jobs:
           file: Containerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
           build-args: |
             WORKER_VERSION=${{ steps.ver.outputs.worker }}
             EASYSTREAM_VERSION=${{ steps.ver.outputs.easystream }}
@@ -95,7 +95,7 @@ jobs:
       - name: verify the baked AVD
         run: |
           set -euo pipefail
-          IMG="${{ env.REGISTRY }}/${{ env.IMAGE }}:latest"
+          IMG="${{ env.IMAGE }}:latest"
           docker run --rm --entrypoint sh "$IMG" -c '
             set -e
             ls -l /opt/android-avd/sandbox.avd/config.ini
