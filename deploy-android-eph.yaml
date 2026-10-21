@@ -1,0 +1,70 @@
+# The Android sandbox with NO persistent volume.
+#
+# The AVD is built INTO THE IMAGE at /opt/android-avd (system image + a
+# pre-created AVD, made at build time by avdmanager). entrypoint.sh copies it to
+# $ANDROID_AVD_HOME when that path is writable and empty, so the guest always
+# starts from the image's copy — the PVC was only ever carrying the emulator's
+# userdata and the user's installed apps.
+#
+# With emptyDir that state now lives and dies with the pod, which is the same
+# contract the windows and macos sandboxes have, and it removes the last PVC from
+# this namespace.
+#
+# ANDROID_AVD_HOME has to be writable: the emulator writes lock files and
+# userdata beside config.ini, and the image's /opt/android-avd is read-only in the
+# container. /avd is a fresh emptyDir, so the seeding branch in entrypoint.sh
+# fires on every pod start.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: android
+  namespace: worker
+  labels:
+    app: android
+    workspace/service: "1"
+    workspace/service-name: android
+spec:
+  # Recreate, not RollingUpdate: one emulator per node, and two of them during a
+  # rollout means two KVM guests competing for the same 8 GB and 4 vCPU.
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: android
+  template:
+    metadata:
+      labels:
+        app: android
+        workspace/service: "1"
+        workspace/service-name: android
+    spec:
+      containers:
+        - name: svc
+          image: artifact.worker.svc.cluster.local/sandbox/sandbox-android:aosp15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: WORKER_TOKEN
+              value: worker-token
+            - name: SANDBOX_PROXY
+              value: http://mihomo.develop.svc.cluster.local:7890
+            - name: ANDROID_AVD_HOME
+              value: /avd
+            # N: keep the image's AVD state. Y would wipe userdata on every start,
+            # which is what -wipe-data does — unnecessary here because the
+            # emptyDir is already empty on every pod.
+            - name: ANDROID_WIPE_DATA
+              value: "N"
+          ports:
+            - containerPort: 48080
+              name: p48080
+          # KVM is NOT mounted here. The working deployment does not mount it
+          # either — the container already reaches /dev/kvm (privileged runtime),
+          # and adding a hostPath CharDevice would make the pod fail to schedule
+          # on any node that does not expose it under that exact path.
+          volumeMounts:
+            - name: avd
+              mountPath: /avd
+      volumes:
+        - name: avd
+          emptyDir: {}

@@ -25,9 +25,9 @@
 # There is no input endpoint; drive the device with adb through the worker API.
 #
 # Endpoints: :48080 worker, :6080 screen, :5555 emulator adbd (internal).
-ARG REGISTRY=git.agent.svc.cluster.local/root
+# Official images by default; a caller can point REGISTRY at a mirror.
+ARG REGISTRY=docker.io/library
 ARG SYSTEM_IMAGE=system-images;android-35;default;x86_64
-ARG ARTIFACT=http://artifact.worker.svc.cluster.local
 
 # ==========================================================================
 # Stage 1: fetch the SDK pieces and pre-create the AVD. Discarded afterwards,
@@ -35,21 +35,15 @@ ARG ARTIFACT=http://artifact.worker.svc.cluster.local
 # ==========================================================================
 FROM ${REGISTRY}/debian:trixie-slim AS sdk
 
-ARG ARTIFACT=http://artifact.worker.svc.cluster.local
-
-ARG HTTP_PROXY=http://mihomo.develop.svc.cluster.local:7890
-ARG HTTPS_PROXY=http://mihomo.develop.svc.cluster.local:7890
-ENV HTTP_PROXY=${HTTP_PROXY} \
-    HTTPS_PROXY=${HTTPS_PROXY} \
-    NO_PROXY=localhost,127.0.0.1,.svc.cluster.local,.svc,.nip.io,10.199.64.20,artifact.worker.svc.cluster.local \
-    no_proxy=localhost,127.0.0.1,.svc.cluster.local,.svc,.nip.io,10.199.64.20,artifact.worker.svc.cluster.local \
-    DEBIAN_FRONTEND=noninteractive
+# No proxy settings: this file describes the image, not the build environment.
+ENV DEBIAN_FRONTEND=noninteractive
 ARG CMDLINE_TOOLS=commandlinetools-linux-11076708_latest.zip
 ARG SYSTEM_IMAGE
 
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
     && rm -f /etc/apt/sources.list.d/*.sources /etc/apt/sources.list \
-    && printf 'deb [trusted=yes] %s/artifacts/debian/debian trixie main\n' "${ARTIFACT}" > /etc/apt/sources.list.d/artifact.list \
+    && printf 'deb https://mirrors.aliyun.com/debian trixie main\n' > /etc/apt/sources.list \
+    && printf 'deb https://mirrors.aliyun.com/debian trixie-updates main\n' >> /etc/apt/sources.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
          curl unzip openjdk-21-jre-headless \
@@ -112,21 +106,15 @@ RUN mkdir -p "$ANDROID_AVD_HOME" \
 # ==========================================================================
 FROM ${REGISTRY}/debian:trixie-slim
 
-ARG ARTIFACT=http://artifact.worker.svc.cluster.local
-
-ARG HTTP_PROXY=http://mihomo.develop.svc.cluster.local:7890
-ARG HTTPS_PROXY=http://mihomo.develop.svc.cluster.local:7890
-ENV HTTP_PROXY=${HTTP_PROXY} \
-    HTTPS_PROXY=${HTTPS_PROXY} \
-    NO_PROXY=localhost,127.0.0.1,.svc.cluster.local,.svc,.nip.io,10.199.64.20,artifact.worker.svc.cluster.local \
-    no_proxy=localhost,127.0.0.1,.svc.cluster.local,.svc,.nip.io,10.199.64.20,artifact.worker.svc.cluster.local \
-    DEBIAN_FRONTEND=noninteractive
+# No proxy settings: this file describes the image, not the build environment.
+ENV DEBIAN_FRONTEND=noninteractive
 
 # The emulator runs headless (-no-window); the worker streams its screen as
 # H.264 (WebCodecs). lib*: the emulator links libX11/libxcb. No JDK/Gradle.
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
     && rm -f /etc/apt/sources.list.d/*.sources /etc/apt/sources.list \
-    && printf 'deb [trusted=yes] %s/artifacts/debian/debian trixie main\n' "${ARTIFACT}" > /etc/apt/sources.list.d/artifact.list \
+    && printf 'deb https://mirrors.aliyun.com/debian trixie main\n' > /etc/apt/sources.list \
+    && printf 'deb https://mirrors.aliyun.com/debian trixie-updates main\n' >> /etc/apt/sources.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
          tini ca-certificates curl unzip xz-utils zip procps socat \

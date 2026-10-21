@@ -1,0 +1,87 @@
+name: image
+
+# Build the Android sandbox image and push it to ghcr.
+#
+# This one is unusual: the "golden disk" is not a published qcow2 but an AVD
+# created at BUILD time from Debian/Google's own system image. So there is nothing
+# to download and nothing to embed — the equivalent of the other sandboxes'
+# embedded disk is simply the system image plus the pre-created AVD sitting in the
+# image at /opt/android-avd. That is why this job needs no disk matrix.
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths:
+      - "Containerfile"
+      - "entrypoint.sh"
+      - "00-token.conf"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: easydev-org/sandbox-android
+  WORKER_REPO: easydev-org/easyworker
+  EASYSTREAM_REPO: easydev-org/easystream-android
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: resolve release versions
+        id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          w=$(gh release view --repo "$WORKER_REPO" --json tagName -q .tagName)
+          e=$(gh release view --repo "$EASYSTREAM_REPO" --json tagName -q .tagName)
+          echo "worker=$w easystream=$e"
+          echo "worker=$w" >> "$GITHUB_OUTPUT"
+          echo "easystream=$e" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest
+          build-args: |
+            WORKER_VERSION=${{ steps.ver.outputs.worker }}
+            EASYSTREAM_VERSION=${{ steps.ver.outputs.easystream }}
+            RELEASE_CACHEBUST=${{ github.run_id }}
+          cache-from: type=gha
+
+      # The AVD is the thing this image exists to carry, and its absence only
+      # shows up as a pod that starts an emulator with no system image. Check it,
+      # and check config.ini names the package the AVD was created from.
+      - name: verify the baked AVD
+        run: |
+          set -euo pipefail
+          IMG="${{ env.REGISTRY }}/${{ env.IMAGE }}:latest"
+          docker run --rm --entrypoint sh "$IMG" -c '
+            set -e
+            ls -l /opt/android-avd/sandbox.avd/config.ini
+            grep -E "^image.sysdir|^AvdId|^hw.cpu.arch" /opt/android-avd/sandbox.avd/config.ini
+            # The system image the AVD points at must exist in the SDK.
+            d=$(sed -n "s/^image.sysdir.1=//p" /opt/android-avd/sandbox.avd/config.ini)
+            test -d "/opt/android-sdk/$d" || test -d "/opt/android-sdk/system-images/$d"
+            echo "system image present"
+          '

@@ -157,7 +157,21 @@ bring_up_guest() {
   $ADB shell chmod 755 "$GUEST_WORKER" >/dev/null 2>&1 || true
   $ADB shell mkdir -p "$GUEST_WS" >/dev/null 2>&1 || true
   $ADB shell "pkill -f $GUEST_WORKER" >/dev/null 2>&1 || true
-  $ADB shell "cd /data/local/tmp && WORKER_OS=android WORKER_TOKEN='${WORKER_TOKEN:-}' WORKER_WORKSPACE=$GUEST_WS setsid $GUEST_WORKER -addr 127.0.0.1:48080 -workspace $GUEST_WS -db $GUEST_WS/jobs.db >/data/local/tmp/easyworker.log 2>&1 </dev/null &" >/dev/null 2>&1 || true
+  # setsid by ABSOLUTE PATH: it lives at /system/bin/setsid but is NOT on the
+  # PATH that `adb shell` hands to the guest shell, so calling it bare failed in
+  # the most misleading way possible:
+  #
+  #   setsid: exec /data/local/tmp/easyworker: No such file or directory
+  #
+  # which reads as "the worker binary is missing" even though it had just been
+  # pushed and chmod'ed. The worker is what setsid could not exec — after failing
+  # to find setsid itself.
+  #
+  # setsid (not nohup) is the right tool: it puts the worker in a NEW SESSION, so
+  # it has no controlling terminal and cannot be signalled when the adb shell
+  # that started it goes away. nohup would only mask SIGHUP on a process still
+  # attached to that session.
+  $ADB shell "cd /data/local/tmp && WORKER_OS=android WORKER_TOKEN='${WORKER_TOKEN:-}' WORKER_WORKSPACE=$GUEST_WS /system/bin/setsid $GUEST_WORKER -addr 127.0.0.1:48080 -workspace $GUEST_WS -db $GUEST_WS/jobs.db >/data/local/tmp/easyworker.log 2>&1 </dev/null &" >/dev/null 2>&1 || true
   sleep 3
   $ADB shell "cat /data/local/tmp/easyworker.log" 2>/dev/null | tail -5 >&2 || true
 }
