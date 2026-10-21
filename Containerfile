@@ -42,8 +42,8 @@ ARG SYSTEM_IMAGE
 
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
     && rm -f /etc/apt/sources.list.d/*.sources /etc/apt/sources.list \
-    && printf 'deb https://mirrors.aliyun.com/debian trixie main\n' > /etc/apt/sources.list \
-    && printf 'deb https://mirrors.aliyun.com/debian trixie-updates main\n' >> /etc/apt/sources.list \
+    && printf 'deb http://mirrors.aliyun.com/debian trixie main\n' > /etc/apt/sources.list \
+    && printf 'deb http://mirrors.aliyun.com/debian trixie-updates main\n' >> /etc/apt/sources.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
          curl unzip openjdk-21-jre-headless \
@@ -113,8 +113,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # H.264 (WebCodecs). lib*: the emulator links libX11/libxcb. No JDK/Gradle.
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
     && rm -f /etc/apt/sources.list.d/*.sources /etc/apt/sources.list \
-    && printf 'deb https://mirrors.aliyun.com/debian trixie main\n' > /etc/apt/sources.list \
-    && printf 'deb https://mirrors.aliyun.com/debian trixie-updates main\n' >> /etc/apt/sources.list \
+    && printf 'deb http://mirrors.aliyun.com/debian trixie main\n' > /etc/apt/sources.list \
+    && printf 'deb http://mirrors.aliyun.com/debian trixie-updates main\n' >> /etc/apt/sources.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
          tini ca-certificates curl unzip xz-utils zip procps socat \
